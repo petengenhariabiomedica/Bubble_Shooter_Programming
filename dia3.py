@@ -1,163 +1,267 @@
-import pygame  # Biblioteca multimídia do código
-import math    # Funções matemáticas (Seno, Cosseno, Arcotangente)
-import random  # Função para randomizar a aparição das bolinhas
+import pygame
+import math
+import random
 
-from dia1 import *
-from dia2 import *
+# Configurações gerais do jogo
+LARGURA, ALTURA, RAIO, COLUNAS, LINHAS = 600, 700, 20, 14, 15
 
-CHAO_Y = ALTURA - 150          # Limite onde o jogo acaba se a bolinha encostar
+# Cores disponíveis para as bolinhas
+LISTA_CORES = [
+    (240, 196, 203),
+    (251, 234, 214),
+    (107, 117, 86)
+]
 
 # =========================
-# JOGO - PARTIDA PRINCIPAL:
+# Classe que representa uma bolinha
 # =========================
+class Bolinha:
+    def __init__(self, x, y, cor, vx=0, vy=0):
+        # Posição da bolinha na tela
+        self.x = x
+        self.y = y
 
-def jogar_partida(nome_jogador):
-    grade = criar_grade() # Gera o mapa inicial.
-    jogador = {"nome": nome_jogador, "pontos": 0} 
-    pos_canhao = [LARGURA // 2, ALTURA_JOGO - 50] 
-    cor_atual = random.choice(LISTA_CORES) 
-    cor_proxima = random.choice(LISTA_CORES) 
-    tiro = None # Começa vazio porque né, a gente não atirou nada ainda.
-    
-    rodando = True 
-    while rodando:
-        tela.fill(BRANCO)
-        mouse_x, mouse_y = pygame.mouse.get_pos() # Onde o mouse está?
+        # Cor da bolinha
+        self.cor = cor
+
+        # Velocidade (usada quando a bolinha está em movimento)
+        self.vx = vx
+        self.vy = vy
+
+    def atualizar(self):
+        # Atualiza posição com base na velocidade
+        # Isso faz a bolinha "andar"
+        self.x += self.vx
+        self.y += self.vy
+
+    def desenhar(self, tela):
+        # Desenha a bolinha na tela
+        pygame.draw.circle(tela, self.cor, (int(self.x), int(self.y)), RAIO)
+
+
+# =========================
+# Classe do canhão (de onde saem os tiros)
+# =========================
+class Canhao:
+    def __init__(self, x, y, cor_inicial):
+        # Posição fixa do canhão
+        self.x = x
+        self.y = y
+
+        # Ângulo de direção (para onde ele está apontando)
+        self.angulo = 0
+
+        # Cor da próxima bolinha a ser disparada
+        self.cor_atual = cor_inicial
+
+    def mirar(self, pos):
+        # Calcula o ângulo entre o canhão e o mouse
+        # atan2 retorna o ângulo correto considerando direção
+        self.angulo = math.atan2(pos[1] - self.y, pos[0] - self.x)
+
+    def desenhar(self, tela):
+        # Calcula a ponta do canhão (linha de direção)
+        fim = (
+            self.x + math.cos(self.angulo) * 50,
+            self.y + math.sin(self.angulo) * 50
+        )
+
+        # Desenha a linha do canhão
+        pygame.draw.line(tela, (100, 100, 100), (self.x, self.y), fim, 4)
+
+        # Desenha a bolinha atual no canhão
+        pygame.draw.circle(tela, self.cor_atual, (self.x, self.y), 20)
+
+
+# =========================
+# Classe principal do jogo
+# =========================
+class BubbleShooterGame:
+    def __init__(self):
+        # Escolhe cor inicial do canhão
+        cor_ini = random.choice(LISTA_CORES)
+
+        # Cria o canhão
+        self.canhao = Canhao(300, 650, cor_ini)
+
+        # Tiro atual (None significa que não há tiro)
+        self.tiro = None
+
+        # Cria o mapa do jogo (matriz de bolinhas)
+        self.mapa = [
+            [
+                # Se estiver nas primeiras linhas, cria bolinha
+                Bolinha(
+                    c * (RAIO * 2) + RAIO + (RAIO if r % 2 == 1 else 0),
+                    r * (RAIO * 1.75) + RAIO,
+                    random.choice(LISTA_CORES)
+                ) if r < 5 else None
+                for c in range(COLUNAS)
+            ]
+            for r in range(LINHAS)
+        ]
+
+    # =========================
+    # Busca grupo de bolinhas conectadas (recursão)
+    # =========================
+    def buscar_grupo(self, r, c, cor_alvo, grupo):
+        # Verificações de segurança
+        if r < 0 or r >= LINHAS or c < 0 or c >= COLUNAS:
+            return
+
+        bolinha = self.mapa[r][c]
+
+        # Para se não tiver bolinha, cor diferente ou já visitado
+        if not bolinha or bolinha.cor != cor_alvo or (r, c) in grupo:
+            return
         
-        # Trigonometria para a mira:
-        dx = mouse_x - pos_canhao[0]
-        dy = mouse_y - pos_canhao[1]
-        angulo = math.atan2(dy, dx) # Arco Tangente para achar o ângulo.
-        # Trava o canhão para não atirar para trás ou no próprio pé.
-        angulo = max(min(angulo, -0.2), -math.pi + 0.2) 
+        # Marca como visitado
+        grupo.add((r, c))
 
-        for evento in pygame.event.get():
-            if evento.type == pygame.QUIT: return None
-            if evento.type == pygame.MOUSEBUTTONDOWN and tiro is None:
-                # Trava de segurança para um tiro por vez.
-                vel = 15 
-                # Cria o tiro: [Pos X, Pos Y, Velocidade X, Velocidade Y, Cor].
-                tiro = [pos_canhao[0], pos_canhao[1], math.cos(angulo)*vel, math.sin(angulo)*vel, cor_atual] 
-                cor_atual = cor_proxima
-                cor_proxima = random.choice(LISTA_CORES)
+        # Vizinhos principais
+        vizinhos = [(-1, 0), (1, 0), (0, -1), (0, 1)]
 
-        # Desenha elementos fixos:
-        pygame.draw.line(tela, VERMELHO_CHAO, (0, CHAO_Y), (LARGURA, CHAO_Y), 3)
-        desenhar_grade(tela, grade)
+        # Ajuste para grid hexagonal
+        if r % 2 == 0:
+            vizinhos += [(-1, -1), (1, -1)]
+        else:
+            vizinhos += [(-1, 1), (1, 1)]
+
+        # Explora todos os vizinhos
+        for dr, dc in vizinhos:
+            self.buscar_grupo(r + dr, c + dc, cor_alvo, grupo)
+
+    # =========================
+    # Disparo da bolinha
+    # =========================
+    def atirar(self):
+        # Só atira se não houver tiro em andamento
+        if not self.tiro:
+            # Calcula velocidade com base no ângulo
+            vx = math.cos(self.canhao.angulo) * 12
+            vy = math.sin(self.canhao.angulo) * 12
+
+            # Cria a bolinha em movimento
+            self.tiro = Bolinha(
+                self.canhao.x,
+                self.canhao.y,
+                self.canhao.cor_atual,
+                vx,
+                vy
+            )
+
+            # Sorteia próxima cor do canhão
+            self.canhao.cor_atual = random.choice(LISTA_CORES)
+
+    # =========================
+    # Faz a bolinha "grudar" no mapa
+    # =========================
+    def grudar(self):
+        # Converte posição do tiro em posição da matriz
+        r = max(0, min(LINHAS - 1, int(self.tiro.y // (RAIO * 1.75))))
+        c = max(0, min(COLUNAS - 1, int((self.tiro.x - (RAIO if r % 2 == 1 else 0)) // (RAIO * 2))))
         
-        # Desenha a linha da mira:
-        mira_x = pos_canhao[0] + math.cos(angulo) * 60
-        mira_y = pos_canhao[1] + math.sin(angulo) * 60
-        pygame.draw.line(tela, CINZA, pos_canhao, (mira_x, mira_y), 2)
-        
-        # Desenha o canhão e a próxima bolinha:
-        pygame.draw.circle(tela, cor_atual, pos_canhao, RAIO)
-        pygame.draw.circle(tela, cor_proxima, (pos_canhao[0] + 60, pos_canhao[1] + 10), RAIO // 2)
+        # Calcula posição exata para alinhar na grade
+        px = c * (RAIO * 2) + RAIO + (RAIO if r % 2 == 1 else 0)
+        py = r * (RAIO * 1.75) + RAIO
 
-        ################# MOVIMENTO DO VOO 
-        if tiro: 
-            tiro[0] += tiro[2] # Incrementa X.
-            tiro[1] += tiro[3] # Incrementa Y.
-            pygame.draw.circle(tela, tiro[4], (int(tiro[0]), int(tiro[1])), RAIO)
+        # Coloca nova bolinha no mapa
+        self.mapa[r][c] = Bolinha(px, py, self.tiro.cor)
+        
+        # Busca grupo conectado
+        grupo = set()
+        self.buscar_grupo(r, c, self.mapa[r][c].cor, grupo)
+
+        # Remove grupo se tiver 3 ou mais
+        if len(grupo) >= 3:
+            for rg, cg in grupo:
+                self.mapa[rg][cg] = None  # BOOM!
+        
+        # Remove o tiro
+        self.tiro = None
+
+    # =========================
+    # Atualiza o jogo (movimento, colisão)
+    # =========================
+    def atualizar(self):
+        if self.tiro:
+            # Move o tiro
+            self.tiro.atualizar()
+
+            # Rebater nas paredes laterais
+            if self.tiro.x < RAIO or self.tiro.x > LARGURA - RAIO:
+                self.tiro.vx *= -1
             
-        ################## BATE E VOLTA
-            # Se bater nas paredes laterais, inverte a velocidade X.
-            if tiro[0] <= RAIO or tiro[0] >= LARGURA - RAIO:
-                tiro[2] *= -1 
-            
-            colidiu = False 
-            if tiro[1] <= RAIO: # Colidiu no teto?
-                colidiu = True
-            else: # Colidiu com outra bolinha?
-                for r in range(LINHAS):
-                    for c in range(COLUNAS):
-                        if grade[r][c]:
-                            px, py = obter_pos_pixel(r, c)
-                            # math.hypot calcula a distância real. Margem de erro 1.6 para parecer natural.
-                            if math.hypot(tiro[0] - px, tiro[1] - py) < RAIO * 1.6: 
-                                colidiu = True
-                                break
-            
-            #################### FUNÇÃO DE GRUDAR
-            if colidiu:
-                # Acha a gaveta vazia mais próxima na grade.
-                r_fix, c_fix = obter_grid_por_pixel(tiro[0], tiro[1]) 
-                if r_fix < LINHAS and grade[r_fix][c_fix] is None:
-                    grade[r_fix][c_fix] = tiro[4]
-                    grupo = set()
-                    buscar_grupo(grade, r_fix, c_fix, tiro[4], grupo)
-                    
-                    if len(grupo) >= 3: # Estoura se tiver 3 ou mais.
-                        for rg, cg in grupo: grade[rg][cg] = None
-                        jogador["pontos"] += len(grupo) * 10
-                        # Bônus por derrubar bolinhas soltas no ar.
-                        jogador["pontos"] += verificar_soltas(grade) * 5 
-                tiro = None # Libera o canhão para o próximo tiro.
+            # Se encostar no topo
+            if self.tiro.y <= RAIO:
+                self.grudar()
+                return
 
-        # Verificação de fim de jogo (bolinha tocou o chão)
-        for r in range(LINHAS):
-            for c in range(COLUNAS):
-                if grade[r][c]:
-                    px, py = obter_pos_pixel(r, c)
-                    if py + RAIO >= CHAO_Y: 
-                        rodando = False # F de derrota.
+            # Verifica colisão com outras bolinhas
+            for r in range(LINHAS):
+                for c in range(COLUNAS):
+                    alvo = self.mapa[r][c]
 
-        # Mostra HUD de pontos:
-        info = fonte.render(f"{jogador['nome']} | Pontos: {jogador['pontos']}", True, PRETO)
-        tela.blit(info, (20, ALTURA - 40))
-        pygame.display.flip()
-        relogio.tick(60) # Crava em 60 frames por segundo.
-        
-    return jogador 
+                    # Se houver bolinha e estiver próximo o suficiente
+                    if alvo and math.hypot(
+                        self.tiro.x - alvo.x,
+                        self.tiro.y - alvo.y
+                    ) < RAIO * 1.6:
+
+                        self.grudar()
+                        return
+
+    # =========================
+    # Desenha tudo na tela
+    # =========================
+    def desenhar(self, tela):
+        # Limpa a tela
+        tela.fill((255, 255, 255))
+
+        # Desenha o canhão
+        self.canhao.desenhar(tela)
+
+        # Desenha o tiro (se existir)
+        if self.tiro:
+            self.tiro.desenhar(tela)
+
+        # Desenha todas as bolinhas do mapa
+        for linha in self.mapa:
+            for b in linha:
+                if b:
+                    b.desenhar(tela)
+
 
 # =========================
-# TELAS E INTERFACE
+# Loop principal do jogo
 # =========================
+if __name__ == "__main__":
+    pygame.init()
 
-def tela_final(tela, jogador):
-    # Mostra pontuação final e pergunta se quer jogar de novo.
+    tela = pygame.display.set_mode((LARGURA, ALTURA))
+
+    jogo = BubbleShooterGame()
+
     while True:
-        tela.fill(BRANCO)
-
-        msg = fonte_grande.render(f"Fim de Jogo, {jogador['nome']}!", True, PRETO)
-        pts = fonte.render(f"Pontos: {jogador['pontos']}", True, PRETO)
-        inst = fonte.render("ENTER para Reiniciar - ESC para Sair", True, CINZA)
-
-        tela.blit(msg, (LARGURA//2 - msg.get_width()//2, 300))
-        tela.blit(pts, (LARGURA//2 - pts.get_width()//2, 360))
-        tela.blit(inst, (LARGURA//2 - inst.get_width()//2, 450))
-
-        pygame.display.flip()
-
         for ev in pygame.event.get():
             if ev.type == pygame.QUIT:
-                return False
+                pygame.quit()
+                exit()
 
-            if ev.type == pygame.KEYDOWN:
-                if ev.key == pygame.K_RETURN:
-                    return True   # Reinicia
-                if ev.key == pygame.K_ESCAPE:
-                    return False  # Fecha o jogo
+            # Clique do mouse dispara
+            if ev.type == pygame.MOUSEBUTTONDOWN:
+                jogo.atirar()
 
-# =========================
-# LOOP PRINCIPAL
-# =========================
+        # Atualiza direção do canhão
+        jogo.canhao.mirar(pygame.mouse.get_pos())
 
-if __name__ == "__main__":
-    ativo = True
+        # Atualiza lógica do jogo
+        jogo.atualizar()
 
-    while ativo:
-        nome = tela_nome_jogador()
-        if not nome:
-            break
+        # Desenha tudo
+        jogo.desenhar(tela)
 
-        resultado = jogar_partida(nome)
+        pygame.display.flip()
 
-        if resultado is None:
-            break
-
-        # Se a partida acabar, vai para a tela de Game Over:
-        if not tela_final(tela, resultado):
-            ativo = False
-
-    pygame.quit() # Encerra a biblioteca e fecha a janela.
+        # Limita FPS (fluidez do jogo)
+        pygame.time.Clock().tick(60)
