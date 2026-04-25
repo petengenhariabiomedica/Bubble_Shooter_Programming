@@ -1,3 +1,6 @@
+from dia3 import BubbleShooterGame
+import pygame
+
 class BubbleShooterPro:
     def __init__(self):
         pygame.init()
@@ -54,3 +57,7 @@ class BubbleShooterPro:
 
             # Limita FPS
             pygame.time.Clock().tick(60)
+
+
+if __name__ == "__main__":
+    BubbleShooterPro().rodar()
