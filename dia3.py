@@ -88,18 +88,31 @@ class BubbleShooterGame:
         self.tiro = None
 
         # Cria o mapa do jogo (matriz de bolinhas)
-        self.mapa = [
-            [
-                # Se estiver nas primeiras linhas, cria bolinha
-                Bolinha(
-                    c * (RAIO * 2) + RAIO + (RAIO if r % 2 == 1 else 0),
-                    r * (RAIO * 1.75) + RAIO,
-                    random.choice(LISTA_CORES)
-                ) if r < 5 else None
-                for c in range(COLUNAS)
-            ]
-            for r in range(LINHAS)
-        ]
+        self.mapa = []
+
+        for r in range(LINHAS):
+            linha_atual = []
+            for c in range(COLUNAS):
+                if r < 5:
+                    # 1. Calcula o deslocamento (offset) das linhas ímpares
+                    offset = RAIO if r % 2 == 1 else 0
+                    
+                    # 2. Calcula as coordenadas X e Y
+                    px = c * (RAIO * 2) + RAIO + offset
+                    py = r * (RAIO * 1.75) + RAIO
+                    
+                    # 3. Sorteia a cor
+                    cor = random.choice(LISTA_CORES)
+                    
+                    # 4. Cria a bolinha e adiciona na linha
+                    nova_bolinha = Bolinha(px, py, cor)
+                    linha_atual.append(nova_bolinha)
+                else:
+                    # Se passou da linha 4, deixa o espaço vazio
+                    linha_atual.append(None)
+                    
+            # Adiciona a linha completa na matriz principal
+            self.mapa.append(linha_atual)
 
     # =========================
     # Busca grupo de bolinhas conectadas (recursão)
